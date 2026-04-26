@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from app.db import SessionLocal, engine
 from app.events import publish
@@ -27,6 +28,17 @@ AUDIO_MIME_PREFIXES = ("audio/",)
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     yield
+
+
+class TrackResponse(BaseModel):
+    id: int
+    filename: str
+    storage_url: str | None
+    status: str
+    created_at: str
+
+    class Config:
+        from_attributes = True
 
 
 app = FastAPI(lifespan=lifespan)
@@ -84,6 +96,25 @@ async def upload_track(file: UploadFile):
     )
 
     return {"track_id": track_id, "status": "pending", "message": "Processing started"}
+
+
+@app.get("/tracks", response_model=list[TrackResponse])
+def list_tracks():
+    db = SessionLocal()
+    try:
+        tracks = db.query(Track).order_by(Track.created_at.desc()).all()
+        return [
+            TrackResponse(
+                id=t.id,
+                filename=t.filename,
+                storage_url=t.storage_url,
+                status=t.status,
+                created_at=t.created_at.isoformat(),
+            )
+            for t in tracks
+        ]
+    finally:
+        db.close()
 
 
 @app.get("/events/stream")
