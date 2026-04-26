@@ -43,10 +43,13 @@ Worker (separate process)
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.11+ (`python3-venv` must be available — `sudo apt install python3-venv` on Debian/Ubuntu)
 - Node.js 18+
-- Docker + Docker Compose
+- PostgreSQL running locally (system service or Docker)
+- Redis running locally (system service or Docker)
 - A [Cloudflare R2](https://developers.cloudflare.com/r2/) bucket with API credentials
+
+> **Docker Compose** is included but only needed if you want containerised Postgres/Redis. The commented-out service blocks in `docker-compose.yml` can be re-enabled if you prefer containers over system services.
 
 ---
 
@@ -63,7 +66,8 @@ cp .env.example .env
 Edit `.env` and fill in your Cloudflare R2 credentials:
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/music
+# Use 127.0.0.1 (not localhost) to force TCP and avoid peer auth issues
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/music
 REDIS_URL=redis://localhost:6379/0
 
 R2_ACCOUNT_ID=your_account_id
@@ -73,18 +77,26 @@ R2_BUCKET_NAME=your_bucket_name
 R2_PUBLIC_URL=https://pub-xxxxxxxxxxxx.r2.dev
 ```
 
-### 2. Start infrastructure
+### 2. Set up PostgreSQL
+
+Create the `music` database. If your system Postgres uses peer authentication, run as the `postgres` OS user:
 
 ```bash
-docker-compose up -d
+sudo -u postgres createdb music
 ```
 
-Starts Postgres (`:5432`) and Redis (`:6379`). Wait for both to report healthy.
+Then set a password on the `postgres` role so SQLAlchemy can connect over TCP:
+
+```bash
+sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'postgres';"
+```
+
+> **Note:** The `DATABASE_URL` in `.env` uses `127.0.0.1` (not `localhost`) to force a TCP connection, which uses password auth and bypasses peer auth.
 
 ### 3. Install Python dependencies
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
@@ -112,7 +124,7 @@ uvicorn app.main:app --reload
 
 **Terminal 2 — Worker**
 ```bash
-python -m app.worker
+python3 -m app.worker
 ```
 Listens for `track.uploaded` events, uploads to R2, and publishes status updates.
 
@@ -156,7 +168,7 @@ music-upload-demo/
         EventFeed.tsx    ← SSE consumer, live event table
     vite.config.ts
   uploads/             ← Temp file storage (gitignored)
-  docker-compose.yml   ← Postgres + Redis
+  docker-compose.yml   ← Postgres + Redis (commented out if using system services)
   requirements.txt
   .env.example
 ```
