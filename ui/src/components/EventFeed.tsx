@@ -10,10 +10,11 @@ interface TrackEvent {
 }
 
 const EVENT_STYLES: Record<string, { badge: string; row: string }> = {
-  'track.uploaded':   { badge: 'bg-blue-100 text-blue-800',   row: '' },
-  'track.processing': { badge: 'bg-yellow-100 text-yellow-800', row: 'bg-yellow-50' },
-  'track.processed':  { badge: 'bg-green-100 text-green-800',  row: 'bg-green-50' },
-  'track.error':      { badge: 'bg-red-100 text-red-800',      row: 'bg-red-50' },
+  'track.uploaded':    { badge: 'bg-blue-100 text-blue-800',    row: '' },
+  'track.transcoding': { badge: 'bg-purple-100 text-purple-800', row: 'bg-purple-50' },
+  'track.processing':  { badge: 'bg-yellow-100 text-yellow-800', row: 'bg-yellow-50' },
+  'track.processed':   { badge: 'bg-green-100 text-green-800',   row: 'bg-green-50' },
+  'track.error':       { badge: 'bg-red-100 text-red-800',       row: 'bg-red-50' },
 }
 
 function formatTime(iso: string): string {
@@ -24,7 +25,13 @@ function formatTime(iso: string): string {
   }
 }
 
-export default function EventFeed() {
+const TERMINAL_EVENTS = new Set(['track.processed', 'track.error'])
+
+interface EventFeedProps {
+  onTerminalEvent?: () => void
+}
+
+export default function EventFeed({ onTerminalEvent }: EventFeedProps) {
   const [events, setEvents] = useState<TrackEvent[]>([])
   const [connected, setConnected] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -38,6 +45,9 @@ export default function EventFeed() {
       try {
         const payload: TrackEvent = JSON.parse(e.data)
         setEvents((prev) => [...prev, payload])
+        if (TERMINAL_EVENTS.has(payload.event)) {
+          onTerminalEvent?.()
+        }
       } catch {
         // ignore malformed messages
       }
@@ -49,7 +59,7 @@ export default function EventFeed() {
       es.close()
       setConnected(false)
     }
-  }, [])
+  }, [onTerminalEvent])
 
   // Auto-scroll to bottom on new events
   useEffect(() => {

@@ -34,12 +34,13 @@ Browser
   │
 Worker (separate process)
   └─ Subscribe "track.events"
-       ├─ Upload file → Cloudflare R2
+       ├─ Transcode to MP3  → uploads/ (temp)
+       ├─ Upload MP3        → Cloudflare R2
        ├─ Update DB status
-       └─ Publish track.processed / track.error
+       └─ Publish status events
 ```
 
-**Event flow:** `track.uploaded` → `track.processing` → `track.processed` (or `track.error`)
+**Event flow:** `track.uploaded` → `track.transcoding` → `track.processing` → `track.processed` (or `track.error`)
 
 > **Note:** Redis Pub/Sub is used here for demo simplicity. In production, use GCP Pub/Sub, Redis Streams, or Celery/RQ for durability, retries, and dead-letter queues.
 
@@ -51,6 +52,7 @@ Worker (separate process)
 - Node.js 18+
 - PostgreSQL running locally (system service or Docker)
 - Redis running locally (system service or Docker)
+- **ffmpeg** installed and on your `$PATH` (`sudo apt install ffmpeg` on Debian/Ubuntu)
 - A [Cloudflare R2](https://developers.cloudflare.com/r2/) bucket with API credentials
 
 > **Docker Compose** is included but only needed if you want containerised Postgres/Redis. The commented-out service blocks in `docker-compose.yml` can be re-enabled if you prefer containers over system services.
@@ -130,7 +132,7 @@ uvicorn app.main:app --reload
 ```bash
 python3 -m app.worker
 ```
-Listens for `track.uploaded` events, uploads to R2, and publishes status updates.
+Listens for `track.uploaded` events, transcodes non-MP3 files to MP3 via ffmpeg, uploads to R2, and publishes status updates.
 
 **Terminal 3 — (Optional) Frontend dev server with HMR**
 ```bash
@@ -147,9 +149,11 @@ cd ui && npm run dev
 3. Watch the progress bar fill as the file uploads.
 4. The **Live Event Feed** panel shows each stage in real time:
    - `track.uploaded` — API received the file
+   - `track.transcoding` — worker is converting the file to MP3 (skipped if already MP3)
    - `track.processing` — worker started the R2 upload
-   - `track.processed` — file is in R2, DB updated
+   - `track.processed` — MP3 is in R2, DB updated with the final filename and URL
    - `track.error` — something went wrong (message shown inline)
+5. The **Track List** table updates automatically once processing completes, showing the final MP3 filename and a link to the R2 URL.
 
 ---
 
@@ -162,14 +166,15 @@ music-upload-demo/
     db.py         ← SQLAlchemy engine + session
     models.py     ← Track model
     events.py     ← Redis publish helper
-    worker.py     ← Event consumer + R2 upload + DB updates
+    worker.py     ← Event consumer + ffmpeg transcoding + R2 upload + DB updates
     storage.py    ← boto3 R2 client
   ui/
     src/
       App.tsx
       components/
         UploadForm.tsx   ← XHR upload with progress bar
-        EventFeed.tsx    ← SSE consumer, live event table
+        EventFeed.tsx    ← SSE consumer, live event table; triggers TrackList refresh on terminal events
+        TrackList.tsx    ← Fetches all tracks from DB; auto-refreshes on track.processed / track.error
     vite.config.ts
   uploads/             ← Temp file storage (gitignored)
   docker-compose.yml   ← Postgres + Redis (commented out if using system services)

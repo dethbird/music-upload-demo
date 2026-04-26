@@ -19,7 +19,7 @@ function App() {
             <UploadForm onUploaded={() => setRefreshSignal((s) => s + 1)} />
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col" style={{ minHeight: '320px' }}>
-            <EventFeed />
+            <EventFeed onTerminalEvent={() => setRefreshSignal((s) => s + 1)} />
           </div>
         </div>
 
