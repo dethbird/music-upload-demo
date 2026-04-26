@@ -150,6 +150,14 @@ activemq-data/
 # Environments
 .env
 .envrc
+
+# Temp uploads (keep the .gitkeep placeholder)
+uploads/*
+!uploads/.gitkeep
+
+# Vite / frontend build output
+ui/dist/
+ui/node_modules/
 .venv
 env/
 venv/
