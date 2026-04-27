@@ -18,6 +18,8 @@ A full-stack demo of an event-driven audio upload pipeline. The API stays fast b
 
 ![Screenshot of the Music Upload Pipeline UI showing the upload form and live event feed](docs/screenshot.png)
 
+![Screenshot of the Music Upload Pipeline API documentation](docs/screenshot2.png)
+
 ---
 
 ## Architecture
